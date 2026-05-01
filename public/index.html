@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Viv Chronicle Visualizer</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- ── Top bar ──────────────────────────────────────────────────────── -->
+  <header id="topbar">
+    <div id="topbar-left">
+      <svg class="viv-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="16" cy="16" r="15" stroke="#4f9eff" stroke-width="2"/>
+        <path d="M8 12 L16 22 L24 12" stroke="#4f9eff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      <span id="app-title">Viv Chronicle</span>
+    </div>
+
+    <div id="topbar-center">
+      <input
+        type="text"
+        id="search-input"
+        placeholder="Search actions, glosses, tags…"
+        aria-label="Search actions"
+        autocomplete="off"
+        spellcheck="false"
+      />
+    </div>
+
+    <div id="topbar-right">
+      <label id="upload-label" title="Upload a chronicle JSON file">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 0 1 .707.293l3 3a1 1 0 0 1-1.414 1.414L11 6.414V13a1 1 0 0 1-2 0V6.414L7.707 7.707A1 1 0 0 1 6.293 6.293l3-3A1 1 0 0 1 10 3zM3 15a1 1 0 0 1 1-1h12a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1z"/></svg>
+        Upload
+        <input type="file" id="upload-input" accept=".json" />
+      </label>
+    </div>
+  </header>
+
+  <!-- ── Main layout ──────────────────────────────────────────────────── -->
+  <div id="layout">
+
+    <!-- Sidebar -->
+    <nav id="sidebar" aria-label="Chronicle filters and info">
+      <div id="sidebar-content"></div>
+    </nav>
+
+    <!-- Canvas area -->
+    <main id="canvas-wrap">
+      <canvas id="main-canvas" aria-label="Chronicle action graph"></canvas>
+
+      <!-- Zoom controls -->
+      <div id="zoom-controls" aria-label="Zoom controls">
+        <button id="zoom-in"  title="Zoom in (=)">+</button>
+        <button id="zoom-reset" title="Reset zoom (0)">1:1</button>
+        <button id="zoom-fit" title="Fit all nodes (F)">⊡</button>
+        <button id="zoom-out" title="Zoom out (-)">−</button>
+      </div>
+
+      <!-- Minimap -->
+      <div id="minimap-wrap" aria-hidden="true">
+        <canvas id="mini-canvas" width="180" height="110"></canvas>
+      </div>
+
+      <!-- Status bar -->
+      <div id="stats-bar" aria-live="polite"></div>
+
+      <!-- Welcome overlay -->
+      <div id="welcome-overlay">
+        <div id="upload-zone">
+          <div class="welcome-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="32" cy="32" r="30" stroke="#4f9eff" stroke-width="2"/>
+              <path d="M20 26 L32 42 L44 26" stroke="#4f9eff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              <line x1="32" y1="14" x2="32" y2="42" stroke="#4f9eff" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h1>Viv Chronicle Visualizer</h1>
+          <p>Upload a Viv run snapshot to explore the causal web of actions, plans, and character arcs.</p>
+          <div class="welcome-actions">
+            <label class="btn btn-primary">
+              <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 0 1 .707.293l3 3a1 1 0 0 1-1.414 1.414L11 6.414V13a1 1 0 0 1-2 0V6.414L7.707 7.707A1 1 0 0 1 6.293 6.293l3-3A1 1 0 0 1 10 3zM3 15a1 1 0 0 1 1-1h12a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1z"/></svg>
+              Upload chronicle
+              <input type="file" id="upload-input-overlay" accept=".json" style="display:none" />
+            </label>
+            <span class="welcome-or">or</span>
+            <button id="load-sample-btn" class="btn btn-secondary">Load sample world</button>
+          </div>
+          <p class="welcome-hint">You can also drag &amp; drop a JSON file anywhere on this page.</p>
+          <div class="welcome-legend">
+            <div class="legend-item"><span class="legend-dot" style="background:#ff6b6b"></span> High importance</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#ffd93d"></span> Medium importance</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#6bcb77"></span> Low importance</div>
+            <div class="legend-item"><span class="legend-edge"></span> Causal link</div>
+            <div class="legend-item"><span class="legend-edge dashed"></span> Queued action</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Action drawer -->
+    <aside id="action-drawer" aria-label="Action details" role="complementary"></aside>
+
+  </div>
+
+  <script src="./bundle.js"></script>
+</body>
+</html>
