@@ -435,6 +435,70 @@ loadSampleBtn.addEventListener("click", async () => {
   }
 });
 
+// ─── Load from URL ────────────────────────────────────────────────────────────
+
+function normalizeChronicleUrl(input: string): string {
+  const url = input.trim();
+  // GitHub blob: https://github.com/{owner}/{repo}/blob/{branch}/{path}
+  //   →  https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{path}
+  const blobMatch = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
+  if (blobMatch) {
+    return `https://raw.githubusercontent.com/${blobMatch[1]}/${blobMatch[2]}/${blobMatch[3]}`;
+  }
+  // GitHub /raw/ shortcut also redirects, but raw.githubusercontent.com is the canonical CORS-enabled source
+  return url;
+}
+
+const urlInput = document.getElementById("url-input") as HTMLInputElement | null;
+const loadUrlBtn = document.getElementById("load-url-btn") as HTMLButtonElement | null;
+
+async function loadFromUrl(rawUrl: string): Promise<void> {
+  const url = normalizeChronicleUrl(rawUrl);
+  if (!url) {
+    showError("Please enter a URL.");
+    return;
+  }
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    showError("Not a valid URL.");
+    return;
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    showError("URL must use http or https.");
+    return;
+  }
+
+  if (loadUrlBtn) {
+    loadUrlBtn.disabled = true;
+    loadUrlBtn.textContent = "Loading…";
+  }
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const text = await res.text();
+    parseAndLoad(text, parsed.pathname.split("/").pop() ?? "remote");
+  } catch (err) {
+    showError(`Failed to load URL: ${(err as Error).message}`);
+  } finally {
+    if (loadUrlBtn) {
+      loadUrlBtn.disabled = false;
+      loadUrlBtn.textContent = "Load URL";
+    }
+  }
+}
+
+if (urlInput && loadUrlBtn) {
+  loadUrlBtn.addEventListener("click", () => loadFromUrl(urlInput.value));
+  urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      loadFromUrl(urlInput.value);
+    }
+  });
+}
+
 // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 
 document.addEventListener("keydown", (e) => {
