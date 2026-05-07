@@ -65,7 +65,7 @@ export function buildGraph(snapshot: VivSnapshot, layoutMode: 'dag' | 'location'
   return { nodes, edges };
 }
 
-// ─── Layered layout ─────────────────────────────────────────────────────────
+// ─── DAG layout ─────────────────────────────────────────────────────────────
 
 interface Pos { col: number; row: number }
 
@@ -73,93 +73,78 @@ function computeLayeredLayout(
   actions: ActionView[],
   edges: GraphEdge[]
 ): Map<UID, Pos> {
-  const ids = actions.map((a) => a.id);
-
-  // Time-step index per unique timestamp; used so root actions spread
-  // horizontally by time even when the chronicle has no causal edges.
+  // col is always the action's time-step index — the x-axis is time.
   const tsMap = new Map(actions.map((a) => [a.id, a.timestamp]));
   const sortedTimestamps = [...new Set(actions.map((a) => a.timestamp))].sort((a, b) => a - b);
   const timeStepIndex = new Map(sortedTimestamps.map((ts, i) => [ts, i]));
 
-  // Build adjacency
-  const children = new Map<UID, UID[]>();
-  const parents = new Map<UID, UID[]>();
-  for (const id of ids) { children.set(id, []); parents.set(id, []); }
+  const childrenMap = new Map<UID, UID[]>();
+  const parentsMap = new Map<UID, UID[]>();
+  for (const a of actions) {
+    childrenMap.set(a.id, []);
+    parentsMap.set(a.id, []);
+  }
   for (const e of edges) {
-    children.get(e.from)?.push(e.to);
-    parents.get(e.to)?.push(e.from);
+    childrenMap.get(e.from)?.push(e.to);
+    parentsMap.get(e.to)?.push(e.from);
   }
 
-  // Assign layers (column = max depth from root, with roots placed at their time step)
-  const layer = new Map<UID, number>();
-  const visited = new Set<UID>();
-
-  function assignLayer(id: UID): number {
-    if (layer.has(id)) return layer.get(id)!;
-    if (visited.has(id)) return 0; // cycle guard
-    visited.add(id);
-    const pars = parents.get(id) ?? [];
-    let col: number;
-    if (pars.length === 0) {
-      // Roots are pinned to their time-step so chronicles without edges
-      // spread horizontally by time, and multi-root chronicles separate
-      // their chains by start time.
-      const ts = tsMap.get(id) ?? 0;
-      col = timeStepIndex.get(ts) ?? 0;
-    } else {
-      // Descendants chain forward from their parents. This keeps parallel
-      // causal chains sharing columns, so the Sugiyama row sort below
-      // splits them onto distinct rows.
-      col = Math.max(...pars.map(assignLayer)) + 1;
-    }
-    layer.set(id, col);
-    return col;
+  const col = new Map<UID, number>();
+  for (const a of actions) {
+    col.set(a.id, timeStepIndex.get(a.timestamp) ?? 0);
   }
 
-  for (const id of ids) assignLayer(id);
+  // Row assignment via DFS from each root: an action's first child
+  // continues its parent's row; later siblings each take a fresh row from
+  // the global counter. findFreeRow bumps a row down on collision so
+  // unrelated chains don't overlap. With no causal edges, every action is
+  // a root → row 0 → single horizontal lane spread by time.
+  const row = new Map<UID, number>();
+  const occupied = new Set<string>();
+  let nextRow = 0;
 
-  // Group by layer, sort within layer by timestamp
-  const layers = new Map<number, UID[]>();
-  for (const action of actions) {
-    const col = layer.get(action.id) ?? 0;
-    if (!layers.has(col)) layers.set(col, []);
-    layers.get(col)!.push(action.id);
+  const occupy = (c: number, r: number) => { occupied.add(`${c},${r}`); };
+  const isOccupied = (c: number, r: number) => occupied.has(`${c},${r}`);
+  const findFreeRow = (c: number, preferredR: number): number => {
+    let r = preferredR;
+    while (isOccupied(c, r)) r++;
+    return r;
+  };
+
+  function place(id: UID, preferredRow: number): void {
+    if (row.has(id)) return;
+    const c = col.get(id) ?? 0;
+    const r = findFreeRow(c, preferredRow);
+    if (r > nextRow) nextRow = r;
+    row.set(id, r);
+    occupy(c, r);
+
+    const kids = [...(childrenMap.get(id) ?? [])].sort(
+      (a, b) => (tsMap.get(a) ?? 0) - (tsMap.get(b) ?? 0)
+    );
+    kids.forEach((kidId, i) => {
+      place(kidId, i === 0 ? r : ++nextRow);
+    });
   }
 
-  // Sort each layer by timestamp of the action
-  for (const [, ids] of layers) {
-    ids.sort((a, b) => (tsMap.get(a) ?? 0) - (tsMap.get(b) ?? 0));
+  // Roots first, sorted by timestamp so earlier chains take lower rows
+  const roots = actions
+    .filter((a) => (parentsMap.get(a.id) ?? []).length === 0)
+    .sort((a, b) => a.timestamp - b.timestamp);
+  for (const r of roots) place(r.id, 0);
+
+  // Anything left (e.g. cycles with no entry point)
+  for (const a of actions) {
+    if (!row.has(a.id)) place(a.id, 0);
   }
 
-  // Assign positions; minimize edge crossings with a simple barycenter pass
   const positions = new Map<UID, Pos>();
-  const sortedCols = [...layers.keys()].sort((a, b) => a - b);
-
-  for (const col of sortedCols) {
-    const colIds = layers.get(col)!;
-
-    // Barycenter: reorder by average row of parents
-    if (col > 0) {
-      const bary = colIds.map((id) => {
-        const pars = parents.get(id) ?? [];
-        if (pars.length === 0) return { id, bary: Infinity };
-        const rows = pars
-          .map((p) => positions.get(p)?.row ?? 0)
-          .reduce((sum, r) => sum + r, 0) / pars.length;
-        return { id, bary: rows };
-      });
-      bary.sort((a, b) => {
-        if (a.bary === Infinity && b.bary === Infinity) return 0;
-        if (a.bary === Infinity) return 1;
-        if (b.bary === Infinity) return -1;
-        return a.bary - b.bary;
-      });
-      colIds.splice(0, colIds.length, ...bary.map((b) => b.id));
-    }
-
-    colIds.forEach((id, row) => positions.set(id, { col, row }));
+  for (const a of actions) {
+    positions.set(a.id, {
+      col: col.get(a.id) ?? 0,
+      row: row.get(a.id) ?? 0,
+    });
   }
-
   return positions;
 }
 
