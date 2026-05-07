@@ -81,6 +81,11 @@ export function render(
   // At very low scale, draw simplified dots instead of full nodes
   const simplified = viewport.scale < 0.25;
 
+  // Draw cluster mode UI (lane backgrounds, time axis)
+  if (state.layoutMode !== 'dag') {
+    drawClusterModeUI(ctx, state, graph, width / viewport.scale, height / viewport.scale);
+  }
+
   // Draw edges first (only those with at least one visible endpoint)
   for (const edge of graph.edges) {
     const fromNode = graph.nodes.get(edge.from);
@@ -135,6 +140,54 @@ function drawGrid(
   }
   for (let y = offsetY; y < h; y += gridSize) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── Cluster mode UI ──────────────────────────────────────────────────────────
+
+function drawClusterModeUI(
+  ctx: CanvasRenderingContext2D,
+  state: AppState,
+  graph: { nodes: Map<UID, GraphNode>; edges: GraphEdge[] },
+  worldWidth: number,
+  worldHeight: number
+): void {
+  if (!state.snapshot) return;
+
+  // Compute lane information from nodes
+  const laneRows = new Set<number>();
+  for (const node of graph.nodes.values()) {
+    laneRows.add(Math.floor(node.y / (NODE_HEIGHT + 40)));
+  }
+
+  // Draw horizontal lane separators (light lines between lanes)
+  ctx.strokeStyle = NODE_BORDER;
+  ctx.lineWidth = 0.5;
+  ctx.globalAlpha = 0.3;
+
+  // Determine lane boundaries
+  const lanes = [...laneRows].sort((a, b) => a - b);
+  for (let i = 1; i < lanes.length; i++) {
+    const y = lanes[i] * (NODE_HEIGHT + 40);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(worldWidth, y);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+
+  // Draw alternating lane backgrounds
+  for (let i = 0; i < lanes.length; i++) {
+    const y = lanes[i] * (NODE_HEIGHT + 40);
+    const nextY = i + 1 < lanes.length ? lanes[i + 1] * (NODE_HEIGHT + 40) : worldHeight;
+
+    if (i % 2 === 0) {
+      ctx.fillStyle = "#1a1d27";
+      ctx.globalAlpha = 0.3;
+      ctx.fillRect(0, y, worldWidth, nextY - y);
+    }
   }
   ctx.globalAlpha = 1;
 }

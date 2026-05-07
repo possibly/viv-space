@@ -148,28 +148,26 @@ function computeLayeredLayout(
 
 // ─── Cluster layout ─────────────────────────────────────────────────────────
 
-const LANE_HEIGHT = 140;
-const COL_WIDTH = NODE_WIDTH + H_GAP;
-const SUB_ROW_HEIGHT = NODE_HEIGHT + 20;
-
 function computeClusterLayout(
   snapshot: VivSnapshot,
   actions: ActionView[],
   edges: GraphEdge[],
   mode: 'location' | 'character' | 'both'
 ): Map<UID, Pos> {
-  // Compute unique sorted timestamps (time steps)
+  // Compute unique sorted timestamps (time steps) — ordinal x-axis
   const timestamps = [...new Set(actions.map((a) => a.timestamp))].sort((a, b) => a - b);
   const timeIndex = new Map(timestamps.map((ts, i) => [ts, i]));
+
+  // Build location/character entity name mapping for labels
+  const entities = snapshot.entities;
 
   const positions = new Map<UID, Pos>();
 
   if (mode === 'location') {
-    // Group by location
+    // Group actions by location into swimlanes
     const locations = [...new Set(actions.map((a) => a.location))].sort();
     const locationMap = new Map(locations.map((loc, i) => [loc, i]));
 
-    // Within each location, sort by timestamp
     const locationActions = new Map<UID, ActionView[]>();
     for (const action of actions) {
       if (!locationActions.has(action.location)) {
@@ -178,12 +176,11 @@ function computeClusterLayout(
       locationActions.get(action.location)!.push(action);
     }
 
-    // Assign positions
+    // Assign col by time step, row by (laneIdx, within-lane stack)
     for (const [location, locActions] of locationActions) {
       const laneIdx = locationMap.get(location) ?? 0;
-      const baseLaneY = laneIdx * LANE_HEIGHT;
 
-      // Group by time step
+      // Group by time step within this location
       const byTime = new Map<number, ActionView[]>();
       for (const action of locActions) {
         const stepIdx = timeIndex.get(action.timestamp) ?? 0;
@@ -191,22 +188,20 @@ function computeClusterLayout(
         byTime.get(stepIdx)!.push(action);
       }
 
-      // Within same time, stack vertically
+      // Assign row = laneIdx * LANE_HEIGHT + subRowWithinTime
       for (const [stepIdx, timeActions] of byTime) {
         timeActions.forEach((action, subRow) => {
-          positions.set(action.id, {
-            col: stepIdx,
-            row: baseLaneY + subRow * (NODE_HEIGHT + 10),
-          });
+          const col = stepIdx;
+          const row = laneIdx * 2 + subRow; // Each lane gets 2 row units, then stack
+          positions.set(action.id, { col, row });
         });
       }
     }
   } else if (mode === 'character') {
-    // Group by character (initiator)
+    // Group actions by character (initiator) into swimlanes
     const characters = [...new Set(actions.map((a) => a.initiator))].sort();
     const charMap = new Map(characters.map((char, i) => [char, i]));
 
-    // Within each character, sort by timestamp
     const charActions = new Map<UID, ActionView[]>();
     for (const action of actions) {
       if (!charActions.has(action.initiator)) {
@@ -215,10 +210,8 @@ function computeClusterLayout(
       charActions.get(action.initiator)!.push(action);
     }
 
-    // Assign positions
     for (const [char, charActs] of charActions) {
       const laneIdx = charMap.get(char) ?? 0;
-      const baseLaneY = laneIdx * LANE_HEIGHT;
 
       const byTime = new Map<number, ActionView[]>();
       for (const action of charActs) {
@@ -229,17 +222,15 @@ function computeClusterLayout(
 
       for (const [stepIdx, timeActions] of byTime) {
         timeActions.forEach((action, subRow) => {
-          positions.set(action.id, {
-            col: stepIdx,
-            row: baseLaneY + subRow * (NODE_HEIGHT + 10),
-          });
+          const col = stepIdx;
+          const row = laneIdx * 2 + subRow;
+          positions.set(action.id, { col, row });
         });
       }
     }
   } else if (mode === 'both') {
-    // Nested: location groups, characters as sub-lanes
+    // Nested: locations as groups, characters as sub-lanes within each location
     const locations = [...new Set(actions.map((a) => a.location))].sort();
-    const locationMap = new Map(locations.map((loc, i) => [loc, i]));
 
     // Build location → characters mapping
     const locCharMap = new Map<UID, Set<UID>>();
@@ -250,13 +241,11 @@ function computeClusterLayout(
       locCharMap.get(action.location)!.add(action.initiator);
     }
 
-    // Assign lane indices
+    // Assign lane index per (location, character) pair
     let laneIdx = 0;
-    const laneMap = new Map<string, number>(); // key: "location|character"
-    const locationBaseRow = new Map<UID, number>();
+    const laneMap = new Map<string, number>();
 
     for (const location of locations) {
-      locationBaseRow.set(location, laneIdx * LANE_HEIGHT);
       const chars = [...(locCharMap.get(location) ?? [])].sort();
       for (const char of chars) {
         laneMap.set(`${location}|${char}`, laneIdx);
@@ -267,13 +256,12 @@ function computeClusterLayout(
     // Assign positions
     for (const action of actions) {
       const laneKey = `${action.location}|${action.initiator}`;
-      const laneIdx = laneMap.get(laneKey) ?? 0;
-      const baseLaneY = laneIdx * LANE_HEIGHT;
-
+      const currentLaneIdx = laneMap.get(laneKey) ?? 0;
       const stepIdx = timeIndex.get(action.timestamp) ?? 0;
+
       positions.set(action.id, {
         col: stepIdx,
-        row: baseLaneY,
+        row: currentLaneIdx * 2, // Each lane gets 2 row units for spacing
       });
     }
   }
