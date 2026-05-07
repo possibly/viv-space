@@ -146,6 +146,41 @@ input {
   display: none;
 }
 
+#layout-mode-toggle {
+  display: flex;
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.layout-mode-btn {
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.layout-mode-btn:last-child {
+  border-right: none;
+}
+
+.layout-mode-btn:hover {
+  color: var(--text);
+  background: rgba(79, 158, 255, 0.1);
+}
+
+.layout-mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
 /* ── Main layout ───────────────────────────────────────────────────────── */
 
 #layout {

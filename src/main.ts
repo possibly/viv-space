@@ -18,6 +18,7 @@ const state: AppState = {
   filterTag: null,
   showPlans: true,
   showQueues: true,
+  layoutMode: 'dag',
 };
 
 // ─── DOM refs ─────────────────────────────────────────────────────────────────
@@ -289,6 +290,31 @@ function scrollToNode(id: UID): void {
   state.viewport.y = ch / 2 - (node.y + node.height / 2) * state.viewport.scale;
   scheduleFrame();
 }
+
+// ─── Layout mode toggle ──────────────────────────────────────────────────
+
+const layoutModeToggle = document.getElementById("layout-mode-toggle")!;
+layoutModeToggle.addEventListener("click", (e) => {
+  const btn = (e.target as HTMLElement).closest(".layout-mode-btn") as HTMLElement | null;
+  if (!btn) return;
+  const newMode = btn.dataset["mode"] as 'dag' | 'location' | 'character' | 'both';
+  if (newMode === state.layoutMode) return;
+
+  state.layoutMode = newMode;
+
+  // Update button active state
+  layoutModeToggle.querySelectorAll(".layout-mode-btn").forEach((b) => {
+    b.classList.toggle("active", b === btn);
+  });
+
+  // Rebuild graph with new layout mode
+  if (state.snapshot) {
+    state.graph = buildGraph(state.snapshot, state.layoutMode);
+    fitView();
+  }
+
+  scheduleFrame();
+});
 
 // ─── Zoom controls ────────────────────────────────────────────────────────────
 

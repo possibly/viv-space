@@ -15,7 +15,7 @@ const CHAR_PALETTE = [
 
 // ─── Build graph from snapshot ──────────────────────────────────────────────
 
-export function buildGraph(snapshot: VivSnapshot): GraphData {
+export function buildGraph(snapshot: VivSnapshot, layoutMode: 'dag' | 'location' | 'character' | 'both' = 'dag'): GraphData {
   const actions = Object.values(snapshot.entities).filter(
     (e): e is ActionView => e.entityType === "action"
   );
@@ -43,8 +43,10 @@ export function buildGraph(snapshot: VivSnapshot): GraphData {
     }
   }
 
-  // Topological layout using Sugiyama-style layering
-  const positions = computeLayeredLayout(actions, edges);
+  // Choose layout based on mode
+  const positions = layoutMode === 'dag'
+    ? computeLayeredLayout(actions, edges)
+    : computeClusterLayout(snapshot, actions, edges, layoutMode);
 
   const nodes = new Map<UID, GraphNode>();
   for (const action of actions) {
@@ -139,6 +141,141 @@ function computeLayeredLayout(
     }
 
     colIds.forEach((id, row) => positions.set(id, { col, row }));
+  }
+
+  return positions;
+}
+
+// ─── Cluster layout ─────────────────────────────────────────────────────────
+
+const LANE_HEIGHT = 140;
+const COL_WIDTH = NODE_WIDTH + H_GAP;
+const SUB_ROW_HEIGHT = NODE_HEIGHT + 20;
+
+function computeClusterLayout(
+  snapshot: VivSnapshot,
+  actions: ActionView[],
+  edges: GraphEdge[],
+  mode: 'location' | 'character' | 'both'
+): Map<UID, Pos> {
+  // Compute unique sorted timestamps (time steps)
+  const timestamps = [...new Set(actions.map((a) => a.timestamp))].sort((a, b) => a - b);
+  const timeIndex = new Map(timestamps.map((ts, i) => [ts, i]));
+
+  const positions = new Map<UID, Pos>();
+
+  if (mode === 'location') {
+    // Group by location
+    const locations = [...new Set(actions.map((a) => a.location))].sort();
+    const locationMap = new Map(locations.map((loc, i) => [loc, i]));
+
+    // Within each location, sort by timestamp
+    const locationActions = new Map<UID, ActionView[]>();
+    for (const action of actions) {
+      if (!locationActions.has(action.location)) {
+        locationActions.set(action.location, []);
+      }
+      locationActions.get(action.location)!.push(action);
+    }
+
+    // Assign positions
+    for (const [location, locActions] of locationActions) {
+      const laneIdx = locationMap.get(location) ?? 0;
+      const baseLaneY = laneIdx * LANE_HEIGHT;
+
+      // Group by time step
+      const byTime = new Map<number, ActionView[]>();
+      for (const action of locActions) {
+        const stepIdx = timeIndex.get(action.timestamp) ?? 0;
+        if (!byTime.has(stepIdx)) byTime.set(stepIdx, []);
+        byTime.get(stepIdx)!.push(action);
+      }
+
+      // Within same time, stack vertically
+      for (const [stepIdx, timeActions] of byTime) {
+        timeActions.forEach((action, subRow) => {
+          positions.set(action.id, {
+            col: stepIdx,
+            row: baseLaneY + subRow * (NODE_HEIGHT + 10),
+          });
+        });
+      }
+    }
+  } else if (mode === 'character') {
+    // Group by character (initiator)
+    const characters = [...new Set(actions.map((a) => a.initiator))].sort();
+    const charMap = new Map(characters.map((char, i) => [char, i]));
+
+    // Within each character, sort by timestamp
+    const charActions = new Map<UID, ActionView[]>();
+    for (const action of actions) {
+      if (!charActions.has(action.initiator)) {
+        charActions.set(action.initiator, []);
+      }
+      charActions.get(action.initiator)!.push(action);
+    }
+
+    // Assign positions
+    for (const [char, charActs] of charActions) {
+      const laneIdx = charMap.get(char) ?? 0;
+      const baseLaneY = laneIdx * LANE_HEIGHT;
+
+      const byTime = new Map<number, ActionView[]>();
+      for (const action of charActs) {
+        const stepIdx = timeIndex.get(action.timestamp) ?? 0;
+        if (!byTime.has(stepIdx)) byTime.set(stepIdx, []);
+        byTime.get(stepIdx)!.push(action);
+      }
+
+      for (const [stepIdx, timeActions] of byTime) {
+        timeActions.forEach((action, subRow) => {
+          positions.set(action.id, {
+            col: stepIdx,
+            row: baseLaneY + subRow * (NODE_HEIGHT + 10),
+          });
+        });
+      }
+    }
+  } else if (mode === 'both') {
+    // Nested: location groups, characters as sub-lanes
+    const locations = [...new Set(actions.map((a) => a.location))].sort();
+    const locationMap = new Map(locations.map((loc, i) => [loc, i]));
+
+    // Build location → characters mapping
+    const locCharMap = new Map<UID, Set<UID>>();
+    for (const action of actions) {
+      if (!locCharMap.has(action.location)) {
+        locCharMap.set(action.location, new Set());
+      }
+      locCharMap.get(action.location)!.add(action.initiator);
+    }
+
+    // Assign lane indices
+    let laneIdx = 0;
+    const laneMap = new Map<string, number>(); // key: "location|character"
+    const locationBaseRow = new Map<UID, number>();
+
+    for (const location of locations) {
+      locationBaseRow.set(location, laneIdx * LANE_HEIGHT);
+      const chars = [...(locCharMap.get(location) ?? [])].sort();
+      for (const char of chars) {
+        laneMap.set(`${location}|${char}`, laneIdx);
+        laneIdx++;
+      }
+    }
+
+    // Assign positions
+    for (const action of actions) {
+      const laneKey = `${action.location}|${action.initiator}`;
+      const laneIdx = laneMap.get(laneKey) ?? 0;
+      const baseLaneY = laneIdx * LANE_HEIGHT;
+
+      const stepIdx = timeIndex.get(action.timestamp) ?? 0;
+      positions.set(action.id, {
+        col: stepIdx,
+        row: baseLaneY,
+      });
+    }
   }
 
   return positions;
