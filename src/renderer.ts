@@ -155,33 +155,74 @@ function drawClusterModeUI(
 ): void {
   if (!state.snapshot) return;
 
-  // Compute lane information from nodes
-  const laneRows = new Set<number>();
+  // Compute lane information from nodes: map lane row to (location/char, color)
+  const laneInfo = new Map<number, { label: string; color: string }>();
+  const nodesByLane = new Map<number, GraphNode[]>();
+
   for (const node of graph.nodes.values()) {
-    laneRows.add(Math.floor(node.y / (NODE_HEIGHT + 40)));
+    const laneIdx = Math.floor(node.y / (NODE_HEIGHT + 40));
+    if (!nodesByLane.has(laneIdx)) {
+      nodesByLane.set(laneIdx, []);
+    }
+    nodesByLane.get(laneIdx)!.push(node);
   }
+
+  // Build lane labels based on mode
+  if (state.layoutMode === 'location') {
+    for (const [laneIdx, nodes] of nodesByLane) {
+      if (nodes.length > 0) {
+        const locId = nodes[0].action.location;
+        const locEntity = state.snapshot.entities[locId];
+        const label = locEntity?.name ?? locId.substring(0, 8);
+        laneInfo.set(laneIdx, { label, color: nodes[0].color });
+      }
+    }
+  } else if (state.layoutMode === 'character') {
+    for (const [laneIdx, nodes] of nodesByLane) {
+      if (nodes.length > 0) {
+        const charId = nodes[0].action.initiator;
+        const charEntity = state.snapshot.entities[charId];
+        const label = charEntity?.name ?? charId.substring(0, 8);
+        laneInfo.set(laneIdx, { label, color: nodes[0].color });
+      }
+    }
+  } else if (state.layoutMode === 'both') {
+    for (const [laneIdx, nodes] of nodesByLane) {
+      if (nodes.length > 0) {
+        const locId = nodes[0].action.location;
+        const charId = nodes[0].action.initiator;
+        const locEntity = state.snapshot.entities[locId];
+        const charEntity = state.snapshot.entities[charId];
+        const locName = locEntity?.name ?? locId.substring(0, 4);
+        const charName = charEntity?.name ?? charId.substring(0, 4);
+        const label = `${charName} @ ${locName}`;
+        laneInfo.set(laneIdx, { label, color: nodes[0].color });
+      }
+    }
+  }
+
+  // Determine lane boundaries
+  const lanes = [...nodesByLane.keys()].sort((a, b) => a - b);
+  const laneHeight = NODE_HEIGHT + 40;
 
   // Draw horizontal lane separators (light lines between lanes)
   ctx.strokeStyle = NODE_BORDER;
   ctx.lineWidth = 0.5;
   ctx.globalAlpha = 0.3;
-
-  // Determine lane boundaries
-  const lanes = [...laneRows].sort((a, b) => a - b);
   for (let i = 1; i < lanes.length; i++) {
-    const y = lanes[i] * (NODE_HEIGHT + 40);
+    const y = lanes[i] * laneHeight;
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(worldWidth, y);
     ctx.stroke();
   }
-
   ctx.globalAlpha = 1;
 
   // Draw alternating lane backgrounds
   for (let i = 0; i < lanes.length; i++) {
-    const y = lanes[i] * (NODE_HEIGHT + 40);
-    const nextY = i + 1 < lanes.length ? lanes[i + 1] * (NODE_HEIGHT + 40) : worldHeight;
+    const laneIdx = lanes[i];
+    const y = laneIdx * laneHeight;
+    const nextY = i + 1 < lanes.length ? lanes[i + 1] * laneHeight : worldHeight;
 
     if (i % 2 === 0) {
       ctx.fillStyle = "#1a1d27";
@@ -190,6 +231,17 @@ function drawClusterModeUI(
     }
   }
   ctx.globalAlpha = 1;
+
+  // Draw lane labels on the left side
+  ctx.font = "12px Inter, Segoe UI, system-ui, sans-serif";
+  ctx.fillStyle = TEXT_SECONDARY;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+
+  for (const [laneIdx, info] of laneInfo) {
+    const y = laneIdx * laneHeight + laneHeight / 2;
+    ctx.fillText(info.label, -8, y);
+  }
 }
 
 // ─── Edges ───────────────────────────────────────────────────────────────────
