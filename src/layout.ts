@@ -75,6 +75,12 @@ function computeLayeredLayout(
 ): Map<UID, Pos> {
   const ids = actions.map((a) => a.id);
 
+  // Time-step index per unique timestamp; used so root actions spread
+  // horizontally by time even when the chronicle has no causal edges.
+  const tsMap = new Map(actions.map((a) => [a.id, a.timestamp]));
+  const sortedTimestamps = [...new Set(actions.map((a) => a.timestamp))].sort((a, b) => a - b);
+  const timeStepIndex = new Map(sortedTimestamps.map((ts, i) => [ts, i]));
+
   // Build adjacency
   const children = new Map<UID, UID[]>();
   const parents = new Map<UID, UID[]>();
@@ -84,7 +90,7 @@ function computeLayeredLayout(
     parents.get(e.to)?.push(e.from);
   }
 
-  // Assign layers (column = max depth from root)
+  // Assign layers (column = max depth from root, with roots placed at their time step)
   const layer = new Map<UID, number>();
   const visited = new Set<UID>();
 
@@ -93,7 +99,13 @@ function computeLayeredLayout(
     if (visited.has(id)) return 0; // cycle guard
     visited.add(id);
     const pars = parents.get(id) ?? [];
-    const col = pars.length === 0 ? 0 : Math.max(...pars.map(assignLayer)) + 1;
+    let col: number;
+    if (pars.length === 0) {
+      const ts = tsMap.get(id) ?? 0;
+      col = timeStepIndex.get(ts) ?? 0;
+    } else {
+      col = Math.max(...pars.map(assignLayer)) + 1;
+    }
     layer.set(id, col);
     return col;
   }
@@ -109,7 +121,6 @@ function computeLayeredLayout(
   }
 
   // Sort each layer by timestamp of the action
-  const tsMap = new Map(actions.map((a) => [a.id, a.timestamp]));
   for (const [, ids] of layers) {
     ids.sort((a, b) => (tsMap.get(a) ?? 0) - (tsMap.get(b) ?? 0));
   }
