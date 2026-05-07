@@ -479,6 +479,10 @@ async function loadFromUrl(rawUrl: string): Promise<void> {
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     const text = await res.text();
     parseAndLoad(text, parsed.pathname.split("/").pop() ?? "remote");
+    // Reflect successful load in the address bar so it can be shared
+    const shareUrl = new URL(location.href);
+    shareUrl.searchParams.set("url", rawUrl.trim());
+    history.replaceState(null, "", shareUrl.toString());
   } catch (err) {
     showError(`Failed to load URL: ${(err as Error).message}`);
   } finally {
@@ -537,3 +541,10 @@ function showError(msg: string): void {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 resizeCanvas();
+
+// Auto-load from ?url= query param if present
+const queryUrl = new URLSearchParams(location.search).get("url");
+if (queryUrl) {
+  if (urlInput) urlInput.value = queryUrl;
+  loadFromUrl(queryUrl);
+}
