@@ -167,75 +167,53 @@ function computeClusterLayout(
   const timestamps = [...new Set(actions.map((a) => a.timestamp))].sort((a, b) => a - b);
   const timeIndex = new Map(timestamps.map((ts, i) => [ts, i]));
 
-  // Build location/character entity name mapping for labels
-  const entities = snapshot.entities;
+  const laneKey = (a: ActionView): UID =>
+    mode === 'location' ? a.location : a.initiator;
+
+  // Order lanes deterministically
+  const lanes = [...new Set(actions.map(laneKey))].sort();
+  const laneMap = new Map(lanes.map((id, i) => [id, i]));
+
+  // Group actions by lane
+  const laneActions = new Map<UID, ActionView[]>();
+  for (const action of actions) {
+    const key = laneKey(action);
+    if (!laneActions.has(key)) laneActions.set(key, []);
+    laneActions.get(key)!.push(action);
+  }
+
+  // Find the deepest stack across any (lane, time-step) cell so every lane
+  // can be sized to fit its tallest column without bleeding into the next.
+  let maxStack = 1;
+  for (const [, laneActs] of laneActions) {
+    const counts = new Map<number, number>();
+    for (const action of laneActs) {
+      const stepIdx = timeIndex.get(action.timestamp) ?? 0;
+      counts.set(stepIdx, (counts.get(stepIdx) ?? 0) + 1);
+    }
+    for (const c of counts.values()) {
+      if (c > maxStack) maxStack = c;
+    }
+  }
+  // Lane stride: maxStack rows for nodes + 1 row of breathing room
+  const laneStride = maxStack + 1;
 
   const positions = new Map<UID, Pos>();
-
-  if (mode === 'location') {
-    // Group actions by location into swimlanes
-    const locations = [...new Set(actions.map((a) => a.location))].sort();
-    const locationMap = new Map(locations.map((loc, i) => [loc, i]));
-
-    const locationActions = new Map<UID, ActionView[]>();
-    for (const action of actions) {
-      if (!locationActions.has(action.location)) {
-        locationActions.set(action.location, []);
-      }
-      locationActions.get(action.location)!.push(action);
+  for (const [id, laneActs] of laneActions) {
+    const laneIdx = laneMap.get(id) ?? 0;
+    const byTime = new Map<number, ActionView[]>();
+    for (const action of laneActs) {
+      const stepIdx = timeIndex.get(action.timestamp) ?? 0;
+      if (!byTime.has(stepIdx)) byTime.set(stepIdx, []);
+      byTime.get(stepIdx)!.push(action);
     }
-
-    // Assign col by time step, row by (laneIdx, within-lane stack)
-    for (const [location, locActions] of locationActions) {
-      const laneIdx = locationMap.get(location) ?? 0;
-
-      // Group by time step within this location
-      const byTime = new Map<number, ActionView[]>();
-      for (const action of locActions) {
-        const stepIdx = timeIndex.get(action.timestamp) ?? 0;
-        if (!byTime.has(stepIdx)) byTime.set(stepIdx, []);
-        byTime.get(stepIdx)!.push(action);
-      }
-
-      // Assign row = laneIdx * LANE_HEIGHT + subRowWithinTime
-      for (const [stepIdx, timeActions] of byTime) {
-        timeActions.forEach((action, subRow) => {
-          const col = stepIdx;
-          const row = laneIdx * 2 + subRow; // Each lane gets 2 row units, then stack
-          positions.set(action.id, { col, row });
+    for (const [stepIdx, timeActions] of byTime) {
+      timeActions.forEach((action, subRow) => {
+        positions.set(action.id, {
+          col: stepIdx,
+          row: laneIdx * laneStride + subRow,
         });
-      }
-    }
-  } else if (mode === 'character') {
-    // Group actions by character (initiator) into swimlanes
-    const characters = [...new Set(actions.map((a) => a.initiator))].sort();
-    const charMap = new Map(characters.map((char, i) => [char, i]));
-
-    const charActions = new Map<UID, ActionView[]>();
-    for (const action of actions) {
-      if (!charActions.has(action.initiator)) {
-        charActions.set(action.initiator, []);
-      }
-      charActions.get(action.initiator)!.push(action);
-    }
-
-    for (const [char, charActs] of charActions) {
-      const laneIdx = charMap.get(char) ?? 0;
-
-      const byTime = new Map<number, ActionView[]>();
-      for (const action of charActs) {
-        const stepIdx = timeIndex.get(action.timestamp) ?? 0;
-        if (!byTime.has(stepIdx)) byTime.set(stepIdx, []);
-        byTime.get(stepIdx)!.push(action);
-      }
-
-      for (const [stepIdx, timeActions] of byTime) {
-        timeActions.forEach((action, subRow) => {
-          const col = stepIdx;
-          const row = laneIdx * 2 + subRow;
-          positions.set(action.id, { col, row });
-        });
-      }
+      });
     }
   }
 
