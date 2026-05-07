@@ -99,13 +99,11 @@ function computeLayeredLayout(
     if (visited.has(id)) return 0; // cycle guard
     visited.add(id);
     const pars = parents.get(id) ?? [];
-    let col: number;
-    if (pars.length === 0) {
-      const ts = tsMap.get(id) ?? 0;
-      col = timeStepIndex.get(ts) ?? 0;
-    } else {
-      col = Math.max(...pars.map(assignLayer)) + 1;
-    }
+    const ts = tsMap.get(id) ?? 0;
+    const tsCol = timeStepIndex.get(ts) ?? 0;
+    const col = pars.length === 0
+      ? tsCol
+      : Math.max(Math.max(...pars.map(assignLayer)) + 1, tsCol);
     layer.set(id, col);
     return col;
   }
