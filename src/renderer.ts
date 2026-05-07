@@ -186,19 +186,6 @@ function drawClusterModeUI(
         laneInfo.set(laneIdx, { label, color: nodes[0].color });
       }
     }
-  } else if (state.layoutMode === 'both') {
-    for (const [laneIdx, nodes] of nodesByLane) {
-      if (nodes.length > 0) {
-        const locId = nodes[0].action.location;
-        const charId = nodes[0].action.initiator;
-        const locEntity = state.snapshot.entities[locId];
-        const charEntity = state.snapshot.entities[charId];
-        const locName = locEntity?.name ?? locId.substring(0, 4);
-        const charName = charEntity?.name ?? charId.substring(0, 4);
-        const label = `${charName} @ ${locName}`;
-        laneInfo.set(laneIdx, { label, color: nodes[0].color });
-      }
-    }
   }
 
   // Determine lane boundaries

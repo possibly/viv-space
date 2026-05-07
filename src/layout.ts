@@ -15,7 +15,7 @@ const CHAR_PALETTE = [
 
 // ─── Build graph from snapshot ──────────────────────────────────────────────
 
-export function buildGraph(snapshot: VivSnapshot, layoutMode: 'dag' | 'location' | 'character' | 'both' = 'dag'): GraphData {
+export function buildGraph(snapshot: VivSnapshot, layoutMode: 'dag' | 'location' | 'character' = 'dag'): GraphData {
   const actions = Object.values(snapshot.entities).filter(
     (e): e is ActionView => e.entityType === "action"
   );
@@ -152,7 +152,7 @@ function computeClusterLayout(
   snapshot: VivSnapshot,
   actions: ActionView[],
   edges: GraphEdge[],
-  mode: 'location' | 'character' | 'both'
+  mode: 'location' | 'character'
 ): Map<UID, Pos> {
   // Compute unique sorted timestamps (time steps) — ordinal x-axis
   const timestamps = [...new Set(actions.map((a) => a.timestamp))].sort((a, b) => a - b);
@@ -227,42 +227,6 @@ function computeClusterLayout(
           positions.set(action.id, { col, row });
         });
       }
-    }
-  } else if (mode === 'both') {
-    // Nested: locations as groups, characters as sub-lanes within each location
-    const locations = [...new Set(actions.map((a) => a.location))].sort();
-
-    // Build location → characters mapping
-    const locCharMap = new Map<UID, Set<UID>>();
-    for (const action of actions) {
-      if (!locCharMap.has(action.location)) {
-        locCharMap.set(action.location, new Set());
-      }
-      locCharMap.get(action.location)!.add(action.initiator);
-    }
-
-    // Assign lane index per (location, character) pair
-    let laneIdx = 0;
-    const laneMap = new Map<string, number>();
-
-    for (const location of locations) {
-      const chars = [...(locCharMap.get(location) ?? [])].sort();
-      for (const char of chars) {
-        laneMap.set(`${location}|${char}`, laneIdx);
-        laneIdx++;
-      }
-    }
-
-    // Assign positions
-    for (const action of actions) {
-      const laneKey = `${action.location}|${action.initiator}`;
-      const currentLaneIdx = laneMap.get(laneKey) ?? 0;
-      const stepIdx = timeIndex.get(action.timestamp) ?? 0;
-
-      positions.set(action.id, {
-        col: stepIdx,
-        row: currentLaneIdx * 2, // Each lane gets 2 row units for spacing
-      });
     }
   }
 

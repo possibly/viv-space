@@ -293,21 +293,13 @@ function scrollToNode(id: UID): void {
 
 // ─── Layout mode toggle ──────────────────────────────────────────────────
 
-const layoutModeToggle = document.getElementById("layout-mode-toggle")!;
-layoutModeToggle.addEventListener("click", (e) => {
-  const btn = (e.target as HTMLElement).closest(".layout-mode-btn") as HTMLElement | null;
-  if (!btn) return;
-  const newMode = btn.dataset["mode"] as 'dag' | 'location' | 'character' | 'both';
+const layoutModeSelect = document.getElementById("layout-mode-select") as HTMLSelectElement;
+layoutModeSelect.addEventListener("change", () => {
+  const newMode = layoutModeSelect.value as 'dag' | 'location' | 'character';
   if (newMode === state.layoutMode) return;
 
   state.layoutMode = newMode;
 
-  // Update button active state
-  layoutModeToggle.querySelectorAll(".layout-mode-btn").forEach((b) => {
-    b.classList.toggle("active", b === btn);
-  });
-
-  // Rebuild graph with new layout mode
   if (state.snapshot) {
     state.graph = buildGraph(state.snapshot, state.layoutMode);
     fitView();

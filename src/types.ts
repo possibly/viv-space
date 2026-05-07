@@ -153,5 +153,5 @@ export interface AppState {
   filterTag: string | null;
   showPlans: boolean;
   showQueues: boolean;
-  layoutMode: 'dag' | 'location' | 'character' | 'both';
+  layoutMode: 'dag' | 'location' | 'character';
 }

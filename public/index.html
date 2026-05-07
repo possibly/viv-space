@@ -30,12 +30,11 @@
     </div>
 
     <div id="topbar-right">
-      <div id="layout-mode-toggle" title="Switch visualization mode" aria-label="Layout mode">
-        <button class="layout-mode-btn active" data-mode="dag">DAG</button>
-        <button class="layout-mode-btn" data-mode="location">Location</button>
-        <button class="layout-mode-btn" data-mode="character">Character</button>
-        <button class="layout-mode-btn" data-mode="both">Both</button>
-      </div>
+      <select id="layout-mode-select" title="Switch visualization mode" aria-label="Layout mode">
+        <option value="dag">DAG</option>
+        <option value="location">Location</option>
+        <option value="character">Character</option>
+      </select>
       <label id="upload-label" title="Upload a chronicle JSON file">
         <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3a1 1 0 0 1 .707.293l3 3a1 1 0 0 1-1.414 1.414L11 6.414V13a1 1 0 0 1-2 0V6.414L7.707 7.707A1 1 0 0 1 6.293 6.293l3-3A1 1 0 0 1 10 3zM3 15a1 1 0 0 1 1-1h12a1 1 0 0 1 0 2H4a1 1 0 0 1-1-1z"/></svg>
         Upload
