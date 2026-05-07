@@ -2,7 +2,7 @@ name: Build and Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "claude/plan-action-clustering-PLJic"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
@@ -45,8 +45,8 @@ jobs:
           path: dist/
 
   deploy:
-    # Only deploy on push to main, not on PRs
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Deploy on push to main or feature branch (for preview), not on PRs
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/plan-action-clustering-PLJic')
     needs: build
     runs-on: ubuntu-latest
     environment:
