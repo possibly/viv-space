@@ -93,15 +93,26 @@
             <button id="load-sample-btn" class="btn btn-secondary">Load sample world</button>
           </div>
           <div class="welcome-url-row">
-            <input
-              type="url"
-              id="url-input"
-              placeholder="…or paste a URL to a chronicle JSON (GitHub blob URLs work too)"
-              aria-label="Chronicle URL"
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <button id="load-url-btn" class="btn btn-secondary">Load URL</button>
+            <div class="url-input-wrap">
+              <svg class="url-input-icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M8.5 11.5a3 3 0 0 0 4.24 0l2.83-2.83a3 3 0 0 0-4.24-4.24L9.91 5.85" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11.5 8.5a3 3 0 0 0-4.24 0l-2.83 2.83a3 3 0 0 0 4.24 4.24l1.41-1.41" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <input
+                type="url"
+                id="url-input"
+                placeholder="Paste a chronicle JSON URL (GitHub blob links work)"
+                aria-label="Chronicle URL"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </div>
+            <button id="load-url-btn" class="btn btn-primary">
+              <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M4 10h12m0 0l-4-4m4 4l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Load
+            </button>
           </div>
           <p class="welcome-hint">You can also drag &amp; drop a JSON file anywhere on this page.</p>
           <div class="welcome-legend">
