@@ -99,11 +99,19 @@ function computeLayeredLayout(
     if (visited.has(id)) return 0; // cycle guard
     visited.add(id);
     const pars = parents.get(id) ?? [];
-    const ts = tsMap.get(id) ?? 0;
-    const tsCol = timeStepIndex.get(ts) ?? 0;
-    const col = pars.length === 0
-      ? tsCol
-      : Math.max(Math.max(...pars.map(assignLayer)) + 1, tsCol);
+    let col: number;
+    if (pars.length === 0) {
+      // Roots are pinned to their time-step so chronicles without edges
+      // spread horizontally by time, and multi-root chronicles separate
+      // their chains by start time.
+      const ts = tsMap.get(id) ?? 0;
+      col = timeStepIndex.get(ts) ?? 0;
+    } else {
+      // Descendants chain forward from their parents. This keeps parallel
+      // causal chains sharing columns, so the Sugiyama row sort below
+      // splits them onto distinct rows.
+      col = Math.max(...pars.map(assignLayer)) + 1;
+    }
     layer.set(id, col);
     return col;
   }
